@@ -1,10 +1,13 @@
 ﻿namespace Sitecore.Support.EventHandlers
 {
   using System;
+  using System.Linq;
 
+  using Sitecore.Data;
   using Sitecore.Data.Items;
   using Sitecore.Diagnostics;
   using Sitecore.Publishing;
+  using Sitecore.SecurityModel;
   using Sitecore.XA.Foundation.Theming;
 
   [UsedImplicitly]
@@ -50,11 +53,27 @@
 
       var items = GetOptimizedItems(item);
 
-      return items;
+      // since GetOptimizedItems returns optimized items from entire database, results need additional filtering
+      using (new LongRunningOperationWatcher(1000, $"Skipping optimized SXA items outside of published root item (total number: {items.Length})"))
+      {
+        var filteredItems = items
+          .Where(x => x.Axes.IsDescendantOf(item))
+          .ToArray();
+
+        if (filteredItems.Length <= 0)
+        {
+          filteredItems = items
+            .Where(x => x.Axes.IsDescendantOf(item.Parent))
+            .ToArray();
+        }
+
+        return filteredItems;
+      }
     }
 
     private static Item[] GetOptimizedItems(Item item)
     {
+      using (new SecurityDisabler())
       using (new LongRunningOperationWatcher(1000, $"Querying optimized SXA items"))
       return DoGetOptimizedItems(item);
     }
@@ -63,8 +82,8 @@
     {
       var optimized = "optimized";
       var optimizedMin = "optimized-min";
-      var query = $".//*[@@templateid='{Templates.OptimizedFile.ID}' and (@@name='{optimized}' or @@name='{optimizedMin}')]";
-      var items = item.Axes.SelectItems(query) ?? item.Parent?.Axes.SelectItems(query);
+      var query = $"fast://*[@@templateid='{Templates.OptimizedFile.ID}' and (@@name='{optimized}' or @@name='{optimizedMin}')]";
+      var items = item.Database.SelectItems(query);
 
       return items;
     }
