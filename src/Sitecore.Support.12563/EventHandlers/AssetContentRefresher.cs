@@ -26,6 +26,7 @@
         return;
       }
 
+      using (new LongRunningOperationWatcher(1000, $"Deleting {items.Length} optimized SXA items"))
       foreach (var optimizedItem in items)
       {
         optimizedItem?.Delete();
@@ -54,6 +55,7 @@
 
     private static Item[] GetOptimizedItems(Item item)
     {
+      using (new LongRunningOperationWatcher(1000, $"Querying optimized SXA items"))
       return DoGetOptimizedItems(item);
     }
 
